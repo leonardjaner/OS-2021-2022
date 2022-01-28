@@ -1,5 +1,5 @@
 /*
- * Filename: server_iteration.c
+ * Filename: server_iterationdefunct_waitpid.c
  */
 
 #include <stdio.h>
@@ -9,6 +9,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <netinet/in.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #define MAXPENDING  2   /* Maximum number of pending connections on server */
 #define BUFFSIZE   20   /* Maximum number of bytes per message */
@@ -48,6 +50,8 @@ int main(int argc, char *argv[]) {
   int serversock, clientsock;
   int returnedpid, result;
   int pid, ppid;
+  int childterminated;
+  int terminatedstatus;
 
   /* Check input parameters */
   if (argc != 2) {
@@ -81,45 +85,36 @@ int main(int argc, char *argv[]) {
   /* Loop */
   while (1) {
     unsigned int clientlen = sizeof(echoclient);
-
     /* New connection request from client? */
     fprintf(stdout, "PARENT PROCESS: Waiting for ACCEPT\n");
-    
     /* Wait for a connection from a client */
     clientsock = accept(serversock, (struct sockaddr *) &echoclient, &clientlen);
     if (clientsock < 0) {
       err_sys("Error accept");
     }
-    
     /* Fork */
     returnedpid = fork();
-
     /* Process child and parent processes */
     if (returnedpid < 0) {
       err_sys("Error fork");
     }
-    else if (returnedpid == 0)
+    else if (returnedpid > 0)
     {
-      /* child process */
-
-      /* Close client socket */
+      /* Parent process *//* Close client socket */
       close(clientsock);
-
-      fprintf(stdout, "CHILD PROCESS: I have already been forked and parend process is handling connection\n");
+      fprintf(stdout, "PARENT PROCESS: I have already forked a new child process\n");
+	  fprintf(stdout," PARENT PROCESS WAITING FOR CHILD TO BE TERMINATED...\n");
+	  childterminated = wait(&terminatedstatus);
+	  fprintf(stdout,"TERMINATED CHILD: %d, STATUS=%d\n",childterminated, WEXITSTATUS(terminatedstatus));
     }
     else
     {
-      /* Parent process */
-
-      /* Close server socket */
+      /* Child process *//* Close server socket */
       close(serversock);
-
       fprintf(stdout, "Client: %s\n", inet_ntoa(echoclient.sin_addr));
-
       /* Handle client */
       handle_client(clientsock);
-
-      err_sys("End of parent process");
+      err_sys("End of child process");
     }
   }
 }

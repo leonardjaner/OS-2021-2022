@@ -83,8 +83,8 @@ int main(int argc, char *argv[]) {
     returnedpid = fork();
 
     /* Process child and parent processes */
-    if (returnedpid != 0) {
-      /* parent process */
+    if (returnedpid == 0) {
+      /* Child process */
 
       /* Close server socket */
       close (serversock);
@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
       exit(0);
     }
     else {
-      /* child process */
+      /* Parent process */
       /* Close client socket */
       close(clientsock);
     }

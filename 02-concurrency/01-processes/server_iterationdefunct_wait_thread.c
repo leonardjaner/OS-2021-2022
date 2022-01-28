@@ -1,5 +1,5 @@
 /*
- * Filename: server_iteration.c
+ * Filename: server_iterationdefunct_wait_thread.c
  */
 
 #include <stdio.h>
@@ -9,6 +9,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <netinet/in.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <pthread.h> 
 
 #define MAXPENDING  2   /* Maximum number of pending connections on server */
 #define BUFFSIZE   20   /* Maximum number of bytes per message */
@@ -43,11 +46,27 @@ void handle_client(int sock) {
   close(sock);
 }
 
+/* wait function: wait for any child to ber terminated*/
+void *waitfunction(void *unused) 
+{ 
+int terminatedstatus;
+int childterminated;
+
+  fprintf(stdout," PARENT PROCESS WAITING FOR CHILD TO BE TERMINATED...\n");
+  childterminated = wait(&terminatedstatus);
+  fprintf(stdout,"TERMINATED CHILD: %d, STATUS=%d\n",childterminated, WEXITSTATUS(terminatedstatus));
+  exit(1);
+}
+
 int main(int argc, char *argv[]) {
   struct sockaddr_in echoserver, echoclient;
   int serversock, clientsock;
   int returnedpid, result;
   int pid, ppid;
+  int childterminated;
+  int terminatedstatus;
+  pthread_t waitthread;
+
 
   /* Check input parameters */
   if (argc != 2) {
@@ -77,49 +96,43 @@ int main(int argc, char *argv[]) {
   if (result < 0) {
     err_sys("Error listen");
   }
-
   /* Loop */
   while (1) {
     unsigned int clientlen = sizeof(echoclient);
-
     /* New connection request from client? */
     fprintf(stdout, "PARENT PROCESS: Waiting for ACCEPT\n");
-    
     /* Wait for a connection from a client */
     clientsock = accept(serversock, (struct sockaddr *) &echoclient, &clientlen);
     if (clientsock < 0) {
       err_sys("Error accept");
     }
-    
     /* Fork */
     returnedpid = fork();
-
     /* Process child and parent processes */
     if (returnedpid < 0) {
       err_sys("Error fork");
     }
-    else if (returnedpid == 0)
+    else if (returnedpid > 0)
     {
-      /* child process */
-
-      /* Close client socket */
+      /* Parent process *//* Close client socket */
       close(clientsock);
-
-      fprintf(stdout, "CHILD PROCESS: I have already been forked and parend process is handling connection\n");
+      /* create thread to wait for children to be terminated */
+	  pthread_create(&waitthread, NULL, waitfunction, NULL);
+      fprintf(stdout, "PARENT PROCESS: I have already forked a new child process\n");
+/*
+	  fprintf(stdout," PARENT PROCESS WAITING FOR CHILD TO BE TERMINATED...\n");
+	  childterminated = wait(&terminatedstatus);
+	  fprintf(stdout,"TERMINATED CHILD: %d, STATUS=%d\n",childterminated, WEXITSTATUS(terminatedstatus));
+*/
     }
     else
     {
-      /* Parent process */
-
-      /* Close server socket */
+      /* Child process *//* Close server socket */
       close(serversock);
-
       fprintf(stdout, "Client: %s\n", inet_ntoa(echoclient.sin_addr));
-
       /* Handle client */
       handle_client(clientsock);
-
-      err_sys("End of parent process");
+      err_sys("End of child process");
     }
   }
 }
